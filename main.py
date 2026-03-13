@@ -29,13 +29,10 @@ class CircleDrawer(QMainWindow):
         loadUi('UI.ui', self)
 
         self.original_drawing_area = self.drawingArea
-
         self.drawing_area = DrawingArea(self.original_drawing_area)
-
         self.drawing_area.setGeometry(self.original_drawing_area.geometry())
         self.drawing_area.setFrameShape(self.original_drawing_area.frameShape())
         self.drawing_area.setFrameShadow(self.original_drawing_area.frameShadow())
-
         layout = self.centralWidget().layout()
         layout.replaceWidget(self.original_drawing_area, self.drawing_area)
 
