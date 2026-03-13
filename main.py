@@ -1,55 +1,53 @@
 import sys
-import random
-from PyQt6.QtWidgets import QApplication, QMainWindow, QFrame
-from PyQt6.QtGui import QPainter, QColor
+import sqlite3
+from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem
 from PyQt6.uic import loadUi
 
 
-class DrawingArea(QFrame):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.circles = []
-
-    def add_circle(self, x, y, diameter):
-        self.circles.append((x, y, diameter))
-        self.update()
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setPen(QColor(255, 255, 0))
-        painter.setBrush(QColor(255, 255, 0))
-
-        for x, y, diameter in self.circles:
-            painter.drawEllipse(x, y, diameter, diameter)
-
-
-class CircleDrawer(QMainWindow):
+class CoffeeInfoApp(QMainWindow):
     def __init__(self):
         super().__init__()
-        loadUi('UI.ui', self)
+        loadUi('main.ui', self)
+        self.coffeeTable.setColumnCount(7)
+        self.coffeeTable.setHorizontalHeaderLabels([
+            'ID', 'Название сорта', 'Степень обжарки',
+            'Молотый/В зернах', 'Описание вкуса',
+            'Цена (руб)', 'Объем упаковки (г)'
+        ])
+        self.load_data()
 
-        self.original_drawing_area = self.drawingArea
-        self.drawing_area = DrawingArea(self.original_drawing_area)
-        self.drawing_area.setGeometry(self.original_drawing_area.geometry())
-        self.drawing_area.setFrameShape(self.original_drawing_area.frameShape())
-        self.drawing_area.setFrameShadow(self.original_drawing_area.frameShadow())
-        layout = self.centralWidget().layout()
-        layout.replaceWidget(self.original_drawing_area, self.drawing_area)
+    def load_data(self):
+        try:
+            conn = sqlite3.connect('coffee.sqlite')
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM coffee ORDER BY id')
+            data = cursor.fetchall()
+            self.coffeeTable.setRowCount(0)
 
-        self.original_drawing_area.hide()
-        self.drawing_area.show()
+            for row_idx, row_data in enumerate(data):
+                self.coffeeTable.insertRow(row_idx)
+                for col_idx, value in enumerate(row_data):
+                    if col_idx == 5:  # Цена
+                        item = QTableWidgetItem(f"{value:.2f}")
+                    else:
+                        item = QTableWidgetItem(str(value))
+                    self.coffeeTable.setItem(row_idx, col_idx, item)
+            self.coffeeTable.resizeColumnsToContents()
+            self.statusbar.showMessage(f"Загружено {len(data)} записей")
+            conn.close()
 
-        self.drawButton.clicked.connect(self.add_circle)
+        except sqlite3.Error as e:
+            self.statusbar.showMessage(f"Ошибка базы данных: {e}")
+        except FileNotFoundError:
+            self.statusbar.showMessage("Файл базы данных не найден")
 
-    def add_circle(self):
-        diameter = random.randint(20, 100)
-        x = random.randint(0, self.drawing_area.width() - diameter)
-        y = random.randint(0, self.drawing_area.height() - diameter)
-        self.drawing_area.add_circle(x, y, diameter)
+
+def main():
+    app = QApplication(sys.argv)
+    window = CoffeeInfoApp()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == '__main__':
-    app = QApplication(sys.argv)
-    window = CircleDrawer()
-    window.show()
-    sys.exit(app.exec())
+    main()
