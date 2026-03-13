@@ -1,1 +1,6 @@
 PyQT6==6.10.2
+PyQt6.QtWidgets
+PyQt6.uic
+sys
+os
+sqlite3

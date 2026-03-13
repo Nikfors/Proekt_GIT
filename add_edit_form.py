@@ -1,24 +1,33 @@
+import sys
+import os
 from PyQt6.QtWidgets import QDialog, QMessageBox
-from PyQt6.uic import loadUi
+
+try:
+    from addEditCoffeeForm_ui import Ui_AddEditCoffeeForm
+except ImportError:
+    import importlib.util
+
+    ui_path = os.path.join(os.path.dirname(__file__), 'addEditCoffeeForm_ui.py')
+    spec = importlib.util.spec_from_file_location("addEditCoffeeForm_ui", ui_path)
+    addEditCoffeeForm_ui = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(addEditCoffeeForm_ui)
+    Ui_AddEditCoffeeForm = addEditCoffeeForm_ui.Ui_AddEditCoffeeForm
 
 
-class AddEditCoffeeForm(QDialog):
+class AddEditCoffeeForm(QDialog, Ui_AddEditCoffeeForm):
     def __init__(self, parent=None, coffee_data=None):
         super().__init__(parent)
-        loadUi('addEditCoffeeForm.ui', self)
+        self.setupUi(self)
 
-        # Если переданы данные, заполняем поля (режим редактирования)
         if coffee_data:
             self.setWindowTitle("Редактирование кофе")
             self.coffee_id = coffee_data[0]
             self.nameEdit.setText(coffee_data[1])
 
-            # Устанавливаем степень обжарки
             index = self.roastCombo.findText(coffee_data[2])
             if index >= 0:
                 self.roastCombo.setCurrentIndex(index)
 
-            # Устанавливаем тип помола
             index = self.grindCombo.findText(coffee_data[3])
             if index >= 0:
                 self.grindCombo.setCurrentIndex(index)
@@ -30,13 +39,10 @@ class AddEditCoffeeForm(QDialog):
             self.setWindowTitle("Добавление кофе")
             self.coffee_id = None
 
-        # Подключение кнопок
         self.saveButton.clicked.connect(self.save_data)
         self.cancelButton.clicked.connect(self.reject)
 
     def save_data(self):
-        """Проверка и сохранение данных"""
-        # Проверка заполнения обязательных полей
         if not self.nameEdit.text().strip():
             QMessageBox.warning(self, "Ошибка", "Введите название сорта")
             return
@@ -45,7 +51,6 @@ class AddEditCoffeeForm(QDialog):
             QMessageBox.warning(self, "Ошибка", "Цена должна быть больше 0")
             return
 
-        # Собираем данные
         self.result_data = {
             'id': self.coffee_id,
             'name': self.nameEdit.text().strip(),
@@ -59,5 +64,4 @@ class AddEditCoffeeForm(QDialog):
         self.accept()
 
     def get_data(self):
-        """Возвращает введенные данные"""
         return getattr(self, 'result_data', None)

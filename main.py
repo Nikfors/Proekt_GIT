@@ -1,16 +1,30 @@
 import sys
+import os
 import sqlite3
 from PyQt6.QtWidgets import QApplication, QMainWindow, QTableWidgetItem, QMessageBox
-from PyQt6.uic import loadUi
+
+try:
+    from main_ui import Ui_MainWindow
+except ImportError:
+    import importlib.util
+
+    ui_path = os.path.join(os.path.dirname(__file__), 'main_ui.py')
+    spec = importlib.util.spec_from_file_location("main_ui", ui_path)
+    main_ui = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(main_ui)
+    Ui_MainWindow = main_ui.Ui_MainWindow
+
 from add_edit_form import AddEditCoffeeForm
 
 
-class CoffeeInfoApp(QMainWindow):
+class CoffeeInfoApp(QMainWindow, Ui_MainWindow):
     def __init__(self):
         super().__init__()
-        loadUi('main.ui', self)
+        self.setupUi(self)
 
-        # Настройка таблицы
+        self.db_path = self.get_database_path()
+        print(f"Путь к базе данных: {self.db_path}")
+
         self.coffeeTable.setColumnCount(7)
         self.coffeeTable.setHorizontalHeaderLabels([
             'ID', 'Название сорта', 'Степень обжарки',
@@ -18,18 +32,33 @@ class CoffeeInfoApp(QMainWindow):
             'Цена (руб)', 'Объем упаковки (г)'
         ])
 
-        # Подключение кнопок
         self.addButton.clicked.connect(self.add_coffee)
         self.editButton.clicked.connect(self.edit_coffee)
 
-        # Автоматическая загрузка данных при запуске
         self.load_data()
 
+    def get_database_path(self):
+        if getattr(sys, 'frozen', False):
+            base_path = os.path.dirname(sys.executable)
+        else:
+            base_path = os.path.dirname(os.path.abspath(__file__))
+
+        return os.path.join(base_path, 'coffee.sqlite')
+
     def load_data(self):
-        """Загрузка данных из базы данных"""
         try:
-            conn = sqlite3.connect('coffee.sqlite')
+            if not os.path.exists(self.db_path):
+                self.statusbar.showMessage(f"База данных не найдена: {self.db_path}")
+                return
+
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
+
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='coffee'")
+            if not cursor.fetchone():
+                self.statusbar.showMessage("Таблица coffee не найдена")
+                conn.close()
+                return
 
             cursor.execute('SELECT * FROM coffee ORDER BY id')
             data = cursor.fetchall()
@@ -39,7 +68,7 @@ class CoffeeInfoApp(QMainWindow):
             for row_idx, row_data in enumerate(data):
                 self.coffeeTable.insertRow(row_idx)
                 for col_idx, value in enumerate(row_data):
-                    if col_idx == 5:  # Цена
+                    if col_idx == 5:
                         item = QTableWidgetItem(f"{value:.2f}")
                     else:
                         item = QTableWidgetItem(str(value))
@@ -47,22 +76,18 @@ class CoffeeInfoApp(QMainWindow):
 
             self.coffeeTable.resizeColumnsToContents()
             self.statusbar.showMessage(f"Загружено {len(data)} записей")
-
             conn.close()
 
-        except sqlite3.Error as e:
-            self.statusbar.showMessage(f"Ошибка базы данных: {e}")
-        except FileNotFoundError:
-            self.statusbar.showMessage("Файл базы данных не найден")
+        except Exception as e:
+            self.statusbar.showMessage(f"Ошибка: {e}")
 
     def add_coffee(self):
-        """Добавление новой записи"""
         form = AddEditCoffeeForm(self)
         if form.exec():
             data = form.get_data()
             if data:
                 try:
-                    conn = sqlite3.connect('coffee.sqlite')
+                    conn = sqlite3.connect(self.db_path)
                     cursor = conn.cursor()
 
                     cursor.execute('''
@@ -76,27 +101,23 @@ class CoffeeInfoApp(QMainWindow):
 
                     conn.commit()
                     conn.close()
-
                     self.load_data()
                     QMessageBox.information(self, "Успех", "Запись успешно добавлена")
 
-                except sqlite3.Error as e:
-                    QMessageBox.critical(self, "Ошибка", f"Ошибка базы данных: {e}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Ошибка", f"Ошибка: {e}")
 
     def edit_coffee(self):
-        """Редактирование выбранной записи"""
         current_row = self.coffeeTable.currentRow()
         if current_row < 0:
             QMessageBox.warning(self, "Предупреждение", "Выберите запись для редактирования")
             return
 
-        # Получаем ID выбранной записи
         coffee_id = int(self.coffeeTable.item(current_row, 0).text())
 
         try:
-            conn = sqlite3.connect('coffee.sqlite')
+            conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
-
             cursor.execute('SELECT * FROM coffee WHERE id = ?', (coffee_id,))
             coffee_data = cursor.fetchone()
             conn.close()
@@ -106,32 +127,25 @@ class CoffeeInfoApp(QMainWindow):
                 if form.exec():
                     data = form.get_data()
                     if data:
-                        try:
-                            conn = sqlite3.connect('coffee.sqlite')
-                            cursor = conn.cursor()
+                        conn = sqlite3.connect(self.db_path)
+                        cursor = conn.cursor()
+                        cursor.execute('''
+                            UPDATE coffee 
+                            SET name = ?, roast_level = ?, grind_type = ?,
+                                taste_description = ?, price = ?, package_volume = ?
+                            WHERE id = ?
+                        ''', (
+                            data['name'], data['roast_level'], data['grind_type'],
+                            data['taste_description'], data['price'],
+                            data['package_volume'], coffee_id
+                        ))
+                        conn.commit()
+                        conn.close()
+                        self.load_data()
+                        QMessageBox.information(self, "Успех", "Запись успешно обновлена")
 
-                            cursor.execute('''
-                                UPDATE coffee 
-                                SET name = ?, roast_level = ?, grind_type = ?,
-                                    taste_description = ?, price = ?, package_volume = ?
-                                WHERE id = ?
-                            ''', (
-                                data['name'], data['roast_level'], data['grind_type'],
-                                data['taste_description'], data['price'],
-                                data['package_volume'], coffee_id
-                            ))
-
-                            conn.commit()
-                            conn.close()
-
-                            self.load_data()
-                            QMessageBox.information(self, "Успех", "Запись успешно обновлена")
-
-                        except sqlite3.Error as e:
-                            QMessageBox.critical(self, "Ошибка", f"Ошибка базы данных: {e}")
-
-        except sqlite3.Error as e:
-            QMessageBox.critical(self, "Ошибка", f"Ошибка базы данных: {e}")
+        except Exception as e:
+            QMessageBox.critical(self, "Ошибка", f"Ошибка: {e}")
 
 
 def main():

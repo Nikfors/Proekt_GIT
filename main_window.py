@@ -1,79 +1,41 @@
-from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QPushButton, QFrame
-from PyQt6.QtCore import Qt
+# create_db.py (выполните отдельно для создания базы данных)
+import sqlite3
 
+# Создаем базу данных
+conn = sqlite3.connect('coffee.sqlite')
+cursor = conn.cursor()
 
-class Ui_MainWindow:
-    def setupUi(self, MainWindow):
-        MainWindow.setObjectName("MainWindow")
-        MainWindow.setWindowTitle("Circle Drawer")
-        MainWindow.resize(800, 600)
+# Создаем таблицу
+cursor.execute('''
+CREATE TABLE IF NOT EXISTS coffee (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    roast_level TEXT NOT NULL,
+    grind_type TEXT NOT NULL,
+    taste_description TEXT,
+    price REAL NOT NULL,
+    package_volume INTEGER NOT NULL
+)
+''')
 
-        self.centralwidget = QWidget(MainWindow)
-        MainWindow.setCentralWidget(self.centralwidget)
+# Добавляем тестовые данные
+test_data = [
+    ('Эфиопия Сидамо', 'Светлая', 'В зернах', 'Цитрусовые нотки, ягодный аромат', 850, 250),
+    ('Колумбия Супремо', 'Средняя', 'Молотый', 'Шоколад, орехи, карамель', 720, 200),
+    ('Бразилия Сантос', 'Темная', 'В зернах', 'Шоколад, орехи, минимальная кислинка', 680, 300),
+    ('Коста-Рика Тарразу', 'Средняя', 'В зернах', 'Фруктовый букет, мед, цитрус', 950, 250),
+    ('Гватемала Антигуа', 'Средне-темная', 'Молотый', 'Какао, специи, дымные нотки', 890, 200),
+    ('Кения АА', 'Светлая', 'В зернах', 'Ягодный, винный, сложный вкус', 1200, 250),
+    ('Суматра Манделинг', 'Темная', 'В зернах', 'Пряный, травяной, полное тело', 780, 300),
+    ('Йемен Мокко', 'Средняя', 'Молотый', 'Винный, шоколадный, с нотами сухофруктов', 1350, 200)
+]
 
-        self.layout = QVBoxLayout(self.centralwidget)
+cursor.executemany('''
+INSERT INTO coffee (name, roast_level, grind_type, taste_description, price, package_volume)
+VALUES (?, ?, ?, ?, ?, ?)
+''', test_data)
 
-        self.drawButton = QPushButton("Нарисовать окружность")
-        self.layout.addWidget(self.drawButton)
+conn.commit()
+conn.close()
 
-        # Область рисования
-        self.drawingArea = QFrame()
-        self.drawingArea.setFrameShape(QFrame.Shape.StyledPanel)
-        self.drawingArea.setFrameShadow(QFrame.Shadow.Raised)
-        self.layout.addWidget(self.drawingArea)
-
-
-class DrawingArea(QFrame):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.circles = []
-
-    def add_circle(self, x, y, diameter, color):
-        self.circles.append((x, y, diameter, color))
-        self.update()
-
-    def paintEvent(self, event):
-        from PyQt6.QtGui import QPainter
-
-        painter = QPainter(self)
-
-        for x, y, diameter, color in self.circles:
-            painter.setPen(color)
-            painter.setBrush(color)
-            painter.drawEllipse(x, y, diameter, diameter)
-
-
-class MainWindow(QMainWindow, Ui_MainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setupUi(self)
-        self.drawing_area = DrawingArea(self.drawingArea)
-        self.drawing_area.setGeometry(self.drawingArea.geometry())
-        self.drawing_area.setFrameShape(self.drawingArea.frameShape())
-        self.drawing_area.setFrameShadow(self.drawingArea.frameShadow())
-        self.layout.replaceWidget(self.drawingArea, self.drawing_area)
-
-        self.drawingArea.hide()
-        self.drawing_area.show()
-
-        self.drawButton.clicked.connect(self.add_circle)
-
-    def add_circle(self):
-        import random
-        from PyQt6.QtGui import QColor
-
-        # Случайный диаметр
-        diameter = random.randint(20, 100)
-
-        # Случайный цвет
-        color = QColor(
-            random.randint(0, 255),
-            random.randint(0, 255),
-            random.randint(0, 255)
-        )
-
-        # Случайная позиция
-        x = random.randint(0, self.drawing_area.width() - diameter)
-        y = random.randint(0, self.drawing_area.height() - diameter)
-
-        self.drawing_area.add_circle(x, y, diameter, color)
+print("База данных coffee.sqlite успешно создана!")
